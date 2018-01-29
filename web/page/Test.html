@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+</head>
+<body>
+<script>
+    // function upload() {
+    //
+    //     var formData= new FormData(form),
+    //         xhr= new XMLHttpRequest();
+    //
+    //     xhr.open("POST", url);
+    //
+    //     xhr.send(formData);
+    // }
+    // function convertImgToBase64(url, callback, outputFormat){
+    //     var canvas = document.createElement('CANVAS'),
+    //         ctx = canvas.getContext('2d'),
+    //         img = new Image;
+    //     img.crossOrigin = 'Anonymous';
+    //     img.onload = function(){
+    //         canvas.height = img.height;
+    //         canvas.width = img.width;
+    //         ctx.drawImage(img,0,0);
+    //         var dataURL = canvas.toDataURL(outputFormat || 'image/png');
+    //         callback.call(this, dataURL);
+    //         canvas = null;
+    //     };
+    //     img.src = url;
+    // }
+    //
+    //
+    // convertImgToBase64('http://bit.ly/18g0VNp', function(base64Img){
+    //     // Base64DataURL
+    // });
+
+    //var img = "https://127.0.0.1/base64/1.jpg";
+    //D:/java code/IChat/web/page/1.png
+    var reader = new FileReader(); //实例化一个FileReader
+
+    reader.onload = function(event){
+        var fileStr = event.target.result;
+        alert(fileStr + '???') ;
+    }
+    function work(url) {
+        reader.readAsDataURL(url); //读取base64
+        alert('fuck');
+        // reader.readAsText(file[0],"UTF-8"); //读取文本文件
+    }
+
+
+
+    var target = document.querySelector("#target"); //获取目标位置
+
+    var reader = new FileReader();
+    var file = null ;
+    reader.onload = function(ev){ //读取文档，将图片显示在目标位置上
+        var result = reader.result;
+        var img = new Image();
+        img.src = result ;
+        target.appendChild(img);
+    }
+
+    target.addEventListener("drop",function(ev){ //当把图片拖放时候，读取文件
+        file = ev.dataTransfer.files[0];
+        reader.readAsDataURL(file);
+        ev.preventDefault();  //阻止浏览器默认行文
+    });
+</script>
+<!--<img width="16" height="16" alt="star" src="data:image/jpg;base64,R0lGODlhEAAQAMQAAORHHOVSKudfOulrSOp3WOyDZu6QdvCchPGolfO0o/XBs/fNwfjZ0frl3/zy7////wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACH5BAkAABAALAAAAAAQABAAAAVVICSOZGlCQAosJ6mu7fiyZeKqNKToQGDsM8hBADgUXoGAiqhSvp5QAnQKGIgUhwFUYLCVDFCrKUE1lBavAViFIDlTImbKC5Gm2hB0SlBCBMQiB0UjIQA7" />-->
+<input id="he"/>
+<button onclick="work(document.getElementById('he').value)" >here</button>
+<!--<button onclick="document.getElementsByClassName('11').src = getBase64Image(img)"></button>-->
+<img id="11"/>
+
+<div id="222"></div>
+
+
+
+
+<div class = "target" id = "target" style="height: 1000px; width:100px;background-color: #2fa0ec" onchange="file"></div>
+</body>
+</html>

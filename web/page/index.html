@@ -1,0 +1,1028 @@
+<!Doctype html>
+<html lang="zh">
+<head>
+	<meta charset="UTF-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1"> 
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>IChat</title>
+	<link rel="stylesheet" type="text/css" href="css/normalize.css" />
+	<link rel="stylesheet" type="text/css" href="css/default.css">
+	<link rel="stylesheet" type="text/css" href="css/styles.css">
+	<!--[if IE]>
+		<script src="js/html5.min.js"></script>
+	<![endif]-->
+
+
+
+
+</head>
+<body>
+
+	<div class="jq22-container">
+
+		<div class="jq22-content bgcolor-3">
+			<div id="chatbox" >
+				<div id="friendslist">
+			    	<div id="topmenu">
+			        	<span class="friends"></span>
+			            <span class="chats" onclick="window.open('http://localhost:8080/page/Customer.html' +
+			            											'?name='+ self_name+'&img='+self_imgurl);"></span>
+			            <span class="history"></span>
+			        </div>
+			        
+			        <div id="friends" style="overflow: auto;height: 355px;">
+			        	<div class="chatroom" id="chatroom" onclick="refresh('chatroom')">
+			            	<img src="img/0.jpg" />
+			                <p>
+			                	<strong style="display: block;">公共聊天室</strong>
+				                <span style="display: block;">IChat</span>
+			                </p>
+			                <div class="status available"></div>
+			            </div>
+
+						<!--
+			            <div class="friend">
+			            	<img src="img/5_copy.jpg" />
+			                <p>
+			                <strong>	Darnell	Strickland</strong>
+				                <span>darnellstrickland@gmail.com</span>
+			                </p>
+			                <div class="status inactive"></div>
+			            </div>
+						-->
+
+			            <div id="search">
+				            <input type="text" id="searchfield" value="Search contacts..." />
+			            </div>
+			            
+			        </div>                
+			        
+			    </div>	
+			    
+			    <div id="chatview" class="p1">    	
+			        <div id="profile" >
+
+			            <div id="close">
+			                <div class="cy"></div>
+			                <div class="cx"></div>
+			            </div>
+			            
+			            <p>Miro Badev</p>
+			            <span>github.com/Samaritan-Infi</span>
+			        </div>
+			        <div id="chat-messages">
+			        	<label>Thursday 02</label>
+			            
+			            <div class="message">
+			            	<img src="img/0.jpg" />
+			                <div class="bubble">
+			                	Welcome to ICHAT , enjoy yourself !
+			                    <div class="corner"></div>
+			                    <span>2018-1-21</span>
+			                </div>
+			            </div>
+			            
+
+			            
+			        </div>
+			    	
+			        <div id="sendmessage">
+			        	<input type="text" style="width:700px;" placeholder="type and press enter to chat" id="chat"  />
+			            <button id="send"></button>
+			        </div>
+			    
+			    </div>
+
+			</div>	
+		</div>
+		
+	</div>
+
+	<input type="file" id="file" name="file" style="position: absolute; left: 850px;top:510px;"/>
+	<div id="result"></div>
+
+<div class="noscript"><h2 style="color: #ff0000">Seems your browser doesn't support Javascript! Websockets rely on Javascript being enabled. Please enable
+	Javascript and reload this page!</h2></div>
+<div>
+	<p>
+
+	</p>
+	<div id="console-container">
+
+	</div>
+</div>
+
+
+<div id="loginmodal" style="z-index: -1;position: absolute;left: 480px;top: 160px;">
+	<h1>User Login</h1>
+	<form id="loginform" name="loginform" method="post" action="index.html">
+		<label for="username">Username:</label>
+		<input type="text" name="username" id="username" class="txtfield" tabindex="1">
+
+		<div class="center"><input  name="btn" id="btn" class="flatbtn-blu hidemodal" value="Log In" tabindex="3"
+			style="width: 100px;height: 28px;" onclick="login_button_click()" >
+		</div>
+	</form>
+</div>
+	<!-- 处理服务器内容-->
+
+	<script type="application/javascript">
+        var Chat = {};
+        /*
+         * 判断语句是否为自己发出的
+         */
+        var self_send = 0 ;
+        var self_imgurl = "" ;
+        var self_name = "" ;
+        Chat.socket = null;
+
+        //判断当前对象是哪一个 ，默认为聊天室
+        var chat_object = "chatroom" ;
+
+        //初始化头像的连接地址
+        var imgurl_list = new Array();
+        imgurl_list[0] = "img/0.jpg" ;
+        for(var i = 1 ; i < 16 ; i ++ ){
+            imgurl_list[i] = ("img/" + i + ".jpg" ).toString();
+		}
+
+        /*
+         * 记录所有人的对话
+         */
+        var wide_chat = new Array() ;
+        wide_chat[0] = ' ^Welcome to ICHAT , enjoy yourself !^img/0.jpg' ;
+        var wide_chat_pos = 1 ;
+
+        var solo_map = new Map(); 		//列表人员的map
+		var solo_img_list = new Array() ; // 列表头像map
+        var solo_num = 0 ; // 列表总人数 从1开始
+
+        var solo_chat = new Array() ; //存对应个人的对话
+		var solo_chat_num = new Array() ; //存对应个人的对话的个数 每个从0开始
+
+		//判断是否要发送图片
+		var img_Base64 ;
+		var img_Base64_status = 0 ;
+
+        Chat.connect = (function(host) {
+            if ('WebSocket' in window) {
+                Chat.socket = new WebSocket(host);
+            } else if ('MozWebSocket' in window) {
+                Chat.socket = new MozWebSocket(host);
+            } else {
+                Console.log('Error: WebSocket is not supported by this browser.');
+                return;
+            }
+
+            Chat.socket.onopen = function () {
+                Console.log('Info: WebSocket connection opened.');
+                document.getElementById('chat').onkeydown = function(event) {
+                    if (event.keyCode == 13) {
+                        //用于区分广播还是私聊
+						if(chat_object == 'chatroom'){
+                            var command = "WIDE^" ;
+						}else{
+						    var command = "SOLO^" ;
+						}
+                        Chat.sendMessage(command);
+                    }
+                };
+            };
+
+            Chat.socket.onclose = function () {
+                document.getElementById('chat').onkeydown = null;
+                Console.log('Info: WebSocket closed.');
+            };
+
+            Chat.socket.onmessage = function (message) {
+                Console.log(message.data);
+            };
+        });
+        //建立连接时不能发送消息，不然会报错
+        Chat.initialize = function() {
+            if (window.location.protocol == 'http:') {
+                Chat.connect('ws://' + window.location.host + '/websocket/chat');
+            } else {
+                Chat.connect('wss://' + window.location.host + '/websocket/chat');
+            }
+            //分配随机的图片地址
+            self_imgurl = imgurl_list[Math.floor(Math.random()*15) + 1];
+            document.getElementById("loginmodal").style.zIndex = '2' ;
+        };
+
+        //注意这里的command 都已经在末尾添加了'^'符号
+        Chat.sendMessage = (function(command) {
+            var string = document.getElementById('chat').value;
+
+            // 检查发送方是否期望发送图片
+			//IMAGE绝对路径
+			// alert(string.substring(0 , 5)) ;
+            // if(string.substring(0 , 5) == 'image' || string.substring(0 , 5) == 'IMAGE'){
+			// 	string = getBase64Image(string.substr(5)) ;
+			// 	alert(string);
+            // }
+			if(img_Base64_status == 1){
+			    string = img_Base64 ;
+			    img_Base64_status = 0 ;
+			}
+
+            if(command == "SOLO^"){
+                var message = command  + chat_object + '^' + string;
+                build_self_contact(self_name + ":" + string , self_imgurl) ;
+                //alert(command + chat_object + '^' + document.getElementById('chat').value);
+			}
+			else {
+                var message = command + string;
+            }
+
+            if (message != '') {
+
+                self_send = 1 ;
+                // build_self_contact(message , "img/2_copy.jpg") ;
+				//alert(message) ;
+                Chat.socket.send(message);
+                document.getElementById('chat').value = '';
+            }
+        });
+        /*
+         * 自己发言时，建立右边对话
+         */
+        function build_self_contact(message,imgsrc) {
+            var parent = document.getElementById("chat-messages") ;
+
+            var div = document.createElement("div");
+            div.className = "message right" ;
+            var img = document.createElement("img");
+            img.src = imgsrc ;
+            div.appendChild(img) ;
+
+            var div_bubble = document.createElement("div_bubble");
+            div_bubble.className = "bubble" ;
+
+            if(isIMG(message)){
+                ///判断是否为图片
+                var img_message = document.createElement("img") ;
+                img_message.src = "img/look" + message.split(':')[1] + '.gif';
+                img_message.style.marginLeft = '0px' ;
+                img_message.style.marginTop = '0px' ;
+                img_message.style.marginRight = '0px' ;
+                img_message.style.marginBottom = '0px' ;
+                div_bubble.appendChild(img_message) ;
+            }
+            else if(isBase64(message)){
+
+                var img_message = document.createElement("img") ;
+                var pre = message.split(':')[0].length ;
+                message = message.substr(pre + 1) ;
+                //var tt = message.substr(28) ;
+                //alert(message) ;
+                img_message.src = message;
+                //alert('' + img_message.src) ;
+
+                img_message.style.margin = '0px' ;
+                //img_message.style.marginTop = '0px' ;
+                div_bubble.appendChild(img_message) ;
+            }
+            else{
+                div_bubble.innerText = message ;
+            }
+
+            var div_corner = document.createElement("div");
+            div_corner.className = "corner" ;
+            div_bubble.appendChild(div_corner) ;
+            var span = document.createElement("span") ;
+            var time = new Date().Format("hh:mm:ss");
+            span.innerText = time ;
+            div_bubble.appendChild(span) ;
+
+            div.appendChild(div_bubble) ;
+            parent.appendChild(div) ;
+        }
+        /*
+         * 处理时间格式
+         */
+        Date.prototype.Format = function (fmt) {
+            var o = {
+                "M+": this.getMonth() + 1, //月份
+                "d+": this.getDate(), //日
+                "h+": this.getHours(), //小时
+                "m+": this.getMinutes(), //分
+                "s+": this.getSeconds(), //秒
+                "q+": Math.floor((this.getMonth() + 3) / 3), //季度
+                "S": this.getMilliseconds() //毫秒
+            };
+            if (/(y+)/.test(fmt)) fmt = fmt.replace(RegExp.$1, (this.getFullYear() + "").substr(4 - RegExp.$1.length));
+            for (var k in o)
+                if (new RegExp("(" + k + ")").test(fmt)) fmt = fmt.replace(RegExp.$1, (RegExp.$1.length == 1) ? (o[k]) : (("00" + o[k]).substr(("" + o[k]).length)));
+            return fmt;
+        }
+        function isIMG(message) {
+            var array = message.split(':') ;
+            message = array[1] ;
+            // alert(array[1]) ;
+            // alert('/');
+            if(message.charAt(0) == '/')
+				return true ;
+            return false ;
+        }
+        function isBase64(message){
+            var array = message.split(':') ;
+            message = array[1] ;
+
+            if(array.length > 2 && message == 'data')
+                return true ;
+            return false ;
+		}
+        /*
+         * 收到回复时建立左边对话
+         */
+        function  build_other_contact(message , imgsrc) {
+            var parent = document.getElementById("chat-messages") ;
+
+            var div = document.createElement("div");
+            div.className = "message" ;
+            var img = document.createElement("img");
+            img.src = imgsrc ;
+            div.appendChild(img) ;
+			//alert(imgsrc) ;
+
+            var div_bubble = document.createElement("div_bubble");
+            div_bubble.className = "bubble" ;
+            if(isIMG(message)){
+                ///判断是否为图片
+                var img_message = document.createElement("img") ;
+                img_message.src = "img/look"  + message.split(':')[1] + '.gif';
+                img_message.style.marginLeft = '0px' ;
+                img_message.style.marginTop = '0px' ;
+                div_bubble.appendChild(img_message) ;
+			}
+            else if(isBase64(message)){
+
+                var img_message = document.createElement("img") ;
+                var pre = message.split(':')[0].length ;
+                message = message.substr(pre + 1) ;
+                //var tt = message.substr(28) ;
+                //alert(message) ;
+                img_message.src = message;
+                //alert('' + img_message.src) ;
+
+                img_message.style.marginLeft = '0px' ;
+                img_message.style.marginTop = '0px' ;
+                div_bubble.appendChild(img_message) ;
+			}
+            else{
+                div_bubble.innerText = message ;
+			}
+
+            var div_corner = document.createElement("div");
+            div_corner.className = "corner" ;
+            div_bubble.appendChild(div_corner) ;
+            var span = document.createElement("span") ;
+            var time = new Date().Format("hh:mm:ss");
+            span.innerText = time ;
+            div_bubble.appendChild(span) ;
+
+            div.appendChild(div_bubble) ;
+            parent.appendChild(div) ;
+        }
+        var Console = {};
+        var SinglePerson = "" ;
+
+
+        /*
+         * 对服务器的回信进行响应
+         */
+        Console.log = (function(message) {
+            /*
+             * 返回当前用户列表
+             */
+            var array = message.split("^") ;
+
+            if(array[0] == "LIST"){
+                return_list(message) ;
+                return ;
+            }else if(array[0] == "JOIN"){
+                var console = document.getElementById('chat-messages');
+                var div = document.createElement('div');
+				div.className = 'bubble' ;
+				div.style.marginLeft = '350px';
+				div.style.background = '#f0f4f7' ;
+				div.style.width = '150px';
+				div.innerText = array[1] ;
+				console.appendChild(div);
+                while (console.childNodes.length > 25) {
+                    console.removeChild(console.firstChild);
+                }
+                console.scrollTop = console.scrollHeight;
+			}else if(array[0] == "EXIT"){
+                var console = document.getElementById('chat-messages');
+                var div = document.createElement('div');
+                div.className = 'bubble' ;
+                div.style.marginLeft = '350px';
+                div.style.background = '#f0f4f7' ;
+                div.style.width = '150px';
+                div.innerText = array[1] ;
+                console.appendChild(div);
+                while (console.childNodes.length > 25) {
+                    console.removeChild(console.firstChild);
+                }
+                console.scrollTop = console.scrollHeight;
+			}else if(array[0] == "WIDE"){
+
+                var console = document.getElementById('chat-messages');
+                var p = document.createElement('p');
+                p.style.wordWrap = 'break-word';
+                p.innerHTML = array[1];
+
+                wide_chat[wide_chat_pos ++ ] = array[1] + '^' + array[2] + '^' + array[3];
+
+
+
+                if(chat_object == "chatroom"){
+                    if(self_send == 0)
+                        build_other_contact(array[1] + ':' + array[2], array[3]);
+                    else
+                        build_self_contact(array[1] + ':' + array[2] , self_imgurl);
+				}
+                self_send = 0 ;
+                while (console.childNodes.length > 25) {
+                    console.removeChild(console.firstChild);
+                }
+                console.scrollTop = console.scrollHeight;
+            }else if(array[0] == "SOLO"){
+                //SOLO^发送者^信息
+                //alert(array[1] + "  " + array[2] + " " + array[3]) ;
+
+                for(var key in solo_map){
+                    alert("属性：" + key + ",值：" + solo_map[key]);
+                }
+
+                var name_num = solo_map.get(array[1]) ;
+
+                if(solo_chat_num[name_num] == 0){
+                    solo_chat[name_num] = new Array() ;
+				}
+
+				var chat_num = solo_chat_num[name_num] ;
+				solo_chat[name_num][chat_num] = array[1] + '^' + array[3] ;
+				solo_chat_num[name_num] ++ ;
+
+				//注意自己现在可能不在这个界面
+				if(chat_object == array[1]){
+				    //如果已经在这个界面，在发送时已经处理，比不处理
+                    // if(array[1].toString() == self_name){
+                     //    build_self_contact(array[1] + ': ' + array[3] , self_imgurl) ;
+                    // }else
+                    if(array[1].toString() != self_name){
+                        build_other_contact(array[1] + ':' + array[3] , array[2]);
+                    }
+				}
+			}
+        });
+        /*
+         * 向服务器发送当前用户信息
+         */
+        function send_user() {
+
+            var message = "USER^" + self_name +"^"+self_imgurl;
+            Chat.socket.send(message);
+        }
+
+		//初始化
+        Chat.initialize();
+
+
+
+
+        document.addEventListener("DOMContentLoaded", function() {
+            // Remove elements with "noscript" class - <noscript> is not allowed in XHTML
+            var noscripts = document.getElementsByClassName("noscript");
+            for (var i = 0; i < noscripts.length; i++) {
+                noscripts[i].parentNode.removeChild(noscripts[i]);
+            }
+        }, false);
+
+        /*
+         * 向服务器请求当前在线人员list
+         */
+        function send_list() {
+
+            var message = "LIST";
+            Chat.socket.send(message);
+        }
+
+        /*
+         * 清除屏幕message元素，清除对话框中的信息
+         */
+        function clear_message() {
+            var message_list = document.getElementsByClassName("message") ;
+
+            // 不能用for循环来删除，因为这个list好像会动态改变，删除后，原来的123位置会改到012，所以每次只能删除一半的元素
+
+            while(message_list.length > 0){
+                var temp = message_list[0] ;
+                temp.remove();
+            }
+        }
+        /*
+         * 将服务器返回的list处理显示到界面上
+         */
+
+        function  return_list(message) {
+
+            var list = document.getElementById("friends") ;
+            var friend_list = document.getElementsByClassName("friend") ;
+            var array = message.split("^") ;
+
+            // 不能用for循环来删除，因为这个list好像会动态改变，删除后，原来的123位置会改到012，所以每次只能删除一半的元素
+            //写到实验报告里
+            //for(var i = 0 ; i < friend_list.length ; ){
+            while(friend_list.length > 0){
+                var temp = friend_list[0] ;
+                temp.remove();
+            }
+
+            //alert(string) ;
+
+            for(var i = 1 ; i < array.length - 1; i ++){
+
+				var name = array[i].toString() ;
+				if(name == 'LIST') continue ;
+                if(solo_map.has(name)){
+
+				}else{
+
+                    solo_num ++ ;
+                    solo_map.set(name , solo_num) ;
+                    solo_img_list[solo_num] = array[i + 1].toString() ;
+
+                    solo_chat_num[solo_num] = 0 ;
+                    //alert(name +  '  here' + ' ' + solo_map.get(name) );
+
+				}
+                i ++ ;
+            }
+
+            for(var i = 1 ; i < array.length - 1; i ++){
+                if(array[i].toString() == "LIST") continue ;
+                var div = document.createElement('div');
+                div.className = "friend" ;
+                div.id = array[i].toString() ;
+
+				div.onclick = function () {
+				    var id = this.id ;
+				    chat_object = id ;
+                    clear_message() ;
+                    if(id == "chatroom"){
+                        for(var i = 0 ; i < wide_chat_pos ; i ++ ){
+                            //wide_chat[wide_chat_pos ++ ] = array[1] + '^' + array[2] + '^' + array[3];
+                            var array = wide_chat[i].split('^') ;
+                            if(array[0] == self_name)
+                                build_self_contact(array[0] + ':' + array[1] , self_imgurl);
+                            else
+                                build_other_contact(array[0] + ':' + array[1], array[2]);
+                            //alert(array[0] + ':' + array[1] + ':' + array[2]) ;
+                        }
+                        return ;
+                    }else{
+                        var id_num = solo_map.get(id) ;
+                        var img_other = solo_img_list[id_num] ;
+                        for(var i = 0 ; i < solo_chat_num[id_num] ; i ++ ){
+                            var array = solo_chat[id_num][i].split("^") ;
+                            if(array[0] == self_name)
+                                build_self_contact(array[0] + ':' + array[1] , self_imgurl);
+                            else
+                                build_other_contact(array[0] + ':' + array[1], img_other);
+                        }
+                    }
+				}
+
+
+                var img = document.createElement("img") ;
+                img.src = array[i+1].toString() ;
+                div.appendChild(img) ;
+                var p = document.createElement("p") ;
+                var strong = document.createElement("strong");
+                strong.style.display = "block" ;
+                strong.innerText = array[i].toString() ;
+                var span = document.createElement("span");
+                span.innerText = "github.com/Samaritan-Infi" ;
+                p.appendChild(strong) ;
+                p.appendChild(span) ;
+                div.appendChild(p) ;
+                var div_available = document.createElement("div");
+                div_available.className = "status available";
+                div.appendChild(div_available) ;
+				i ++ ;
+
+                list.appendChild(div);
+
+                //给chatlist 中的添加的每一个个人 添加jquery 来进行私人聊天
+				build_link_panel(array[i - 1].toString() , img.src) ;
+            }
+        }
+		/*
+		 * 将jquery新建的面板附着到传入的div中
+		 */
+		function build_link_panel(main_id , imgurl) {
+			var div_chatview = document.createElement('div');
+			div_chatview.className = 'p1' + main_id ;
+			div_chatview.id = 'chatview' + main_id ;
+			div_chatview.style.display = 'block' ;
+
+			var div_profile = document.createElement('div');
+			div_profile.className = 'animate' + main_id;
+			div_profile.id = 'profile' + main_id;
+
+			var div_close = document.createElement('div');
+			div_close.id = 'close' ;
+
+			var div_close_x = document.createElement('div');
+			div_close_x.className = 'cy s1 s2 s3' ;
+
+			var div_close_y = document.createElement('div');
+			div_close_y.className = 'cx s1 s2 s3' ;
+
+			div_close.appendChild(div_close_x) ;
+			div_close.appendChild(div_close_y) ;
+
+			var p = document.createElement('p');
+			p.className = 'animate' ;
+			p.innerText = main_id ;
+
+			var span = document.createElement('span') ;
+			span.innerText = 'mirobadev@gmail.com' ;
+
+			div_profile.appendChild(div_close) ;
+			div_profile.appendChild(p) ;
+			div_profile.appendChild(span) ;
+
+			var div_chat_message = document.createElement('div') ;
+			div_chat_message.className = 'animate' ;
+			div_chat_message.id = 'chat-messages' ;
+
+			var label = document.createElement('label');
+			label.innerText = new Date().Format("hh:mm:ss") ;
+
+			div_chat_message.appendChild(label) ;
+
+			var div_sendmessage = document.createElement('div');
+			div_sendmessage.id = 'sendmessage' ;
+
+			var input = document.createElement('input') ;
+			input.id = 'chat';
+			input.style.width = '700px';
+			input.type = 'text' ;
+			input.placeholder = 'type and press enter to chat' ;
+
+			var button = document.createElement('button') ;
+			button.id = 'send' ;
+
+			var img = document.createElement('img') ;
+			img.src = imgurl ;
+			img.className = 'floatingImg' ;
+			img.style.left = '388px' ;
+			img.style.top = '20px' ;
+			img.style.width = '68px' ;
+
+			div_chatview.appendChild(div_profile) ;
+			div_chatview.appendChild(div_chat_message) ;
+			div_chatview.appendChild(div_sendmessage);
+			div_chatview.appendChild(img) ;
+
+			linkJquery(main_id) ;
+         }
+
+        function linkJquery( main_panel) {
+             $('.friend').each(function () {
+                 $(this).click(function () {
+                     var childOffset = $(this).offset();
+                     var parentOffset = $(this).parent().parent().offset();
+                     var childTop = childOffset.top - parentOffset.top;
+                     var clone = $(this).find('img').eq(0).clone();
+                     var top = childTop + 12 + 'px';
+                     $(clone).css({ 'top': top }).addClass('floatingImg').appendTo('#chatbox');
+                     setTimeout(function () {
+                         $('#profile p').addClass('animate');
+                         $('#profile').addClass('animate');
+                     }, 100);
+                     setTimeout(function () {
+                         $('#chat-messages').addClass('animate');
+                         $('.cx, .cy').addClass('s1');
+                         setTimeout(function () {
+                             $('.cx, .cy').addClass('s2');
+                         }, 100);
+                         setTimeout(function () {
+                             $('.cx, .cy').addClass('s3');
+                         }, 200);
+                     }, 150);
+                     $('.floatingImg').animate({
+                         'width': '68px',
+                         'left': '388px',
+                         'top': '20px'
+                     }, 200);
+                     var name = $(this).find('p strong').html();
+                     var email = $(this).find('p span').html();
+                     $('#profile p').html(name);
+                     $('#profile span').html(email);
+                     //$('.message').not('.right').find('img').attr('src', $(clone).attr('src'));
+                     $('#friendslist').fadeOut();
+                     $('#chatview').fadeIn();
+
+                     $('#close').unbind('click').click(function () {
+                         $('#chat-messages, #profile, #profile p').removeClass('animate');
+                         $('.cx, .cy').removeClass('s1 s2 s3');
+                         $('.floatingImg').animate({
+                             'width': '40px',
+                             'top': top,
+                             'left': '12px'
+                         }, 200, function () {
+                             $('.floatingImg').remove();
+                         });
+                         setTimeout(function () {
+                             $('#chatview' ).fadeOut();
+                             $('#friendslist').fadeIn();
+                         }, 50);
+                     });
+                 });
+             });
+             $('.chatroom').each(function () {
+                 $(this).click(function () {
+                     var childOffset = $(this).offset();
+                     var parentOffset = $(this).parent().parent().offset();
+                     var childTop = childOffset.top - parentOffset.top;
+                     var clone = $(this).find('img').eq(0).clone();
+                     var top = childTop + 12 + 'px';
+                     $(clone).css({ 'top': top }).addClass('floatingImg').appendTo('#chatbox');
+                     setTimeout(function () {
+                         $('#profile p').addClass('animate');
+                         $('#profile').addClass('animate');
+                     }, 100);
+                     setTimeout(function () {
+                         $('#chat-messages').addClass('animate');
+                         $('.cx, .cy').addClass('s1');
+                         setTimeout(function () {
+                             $('.cx, .cy').addClass('s2');
+                         }, 100);
+                         setTimeout(function () {
+                             $('.cx, .cy').addClass('s3');
+                         }, 200);
+                     }, 150);
+                     $('.floatingImg').animate({
+                         'width': '68px',
+                         'left': '388px',
+                         'top': '20px'
+                     }, 200);
+                     var name = $(this).find('p strong').html();
+                     var email = $(this).find('p span').html();
+                     $('#profile p').html(name);
+                     $('#profile span').html(email);
+                     //$('.message').not('.right').find('img').attr('src', $(clone).attr('src'));
+                     $('#friendslist').fadeOut();
+                     $('#chatview').fadeIn();
+                     $('#close').unbind('click').click(function () {
+                         $('#chat-messages, #profile, #profile p').removeClass('animate');
+                         $('.cx, .cy').removeClass('s1 s2 s3');
+                         $('.floatingImg').animate({
+                             'width': '40px',
+                             'top': top,
+                             'left': '12px'
+                         }, 200, function () {
+                             $('.floatingImg').remove();
+                         });
+                         setTimeout(function () {
+                             $('#chatview').fadeOut();
+                             $('#friendslist').fadeIn();
+                         }, 50);
+                     });
+                 });
+             });
+         }
+
+         /*
+          * 用于传输本地图片，将图片转化为BASE64格式发送，在收到的一方解压
+          * 这个版本函数不行，是因为基于file协议的，感谢老师教导
+          * function getBase64Image(src) {
+            alert(src + '  ? ') ;
+            var img = new Image() ;
+            img.crossOrigin = '';
+            img.src = src;
+
+            var canvas = document.createElement("canvas");
+            canvas.width = img.width;
+            canvas.height = img.height;
+
+            var ctx = canvas.getContext("2d");
+            ctx.drawImage(img, 0, 0, img.width, img.height);
+
+            var ext = src.substring(src.lastIndexOf(".")+1).toLowerCase();
+            var dataURL = canvas.toDataURL("image/"+ext);
+            alert(dataURL);
+            return dataURL;
+        }
+
+          */
+
+	</script>
+	<script type="text/javascript">
+        //读取图片
+        function ProcessFile(e) {
+            var file = document.getElementById('file').files[0];
+            if (file) {
+                var reader = new FileReader();
+                reader.onload = function (event) {
+                    img_Base64 = event.target.result;
+                    img_Base64_status = 1 ;
+                    //alert(txt);
+                    var img = document.createElement("img");
+                    img.src = txt;//将图片base64字符串赋值给img的src
+                    //document.getElementById("result").appendChild(img);
+                };
+            }
+            reader.readAsDataURL(file);
+        }
+
+        function contentLoaded() {
+            document.getElementById('file').addEventListener('change',
+                ProcessFile, false);
+        }
+
+        window.addEventListener("DOMContentLoaded", contentLoaded, false);
+
+	</script>
+	<script>
+		/*
+		 * 清除屏幕，然后根据id重新添加
+		 */
+		function refresh(id) {
+			clear_message() ;
+			chat_object = id ;
+			if(id == "chatroom"){
+			    for(var i = 0 ; i < wide_chat_pos ; i ++ ){
+                    //wide_chat[wide_chat_pos ++ ] = array[1] + '^' + array[2] + '^' + array[3];
+					var array = wide_chat[i].split('^') ;
+                    if(array[0] == self_name)
+                        build_self_contact(array[0] + ':' + array[1] , self_imgurl);
+                    else
+                        build_other_contact(array[0] + ':' + array[1], array[2]);
+                    //alert(array[0] + ':' + array[1] + ':' + array[2]) ;
+				}
+			    return ;
+			}else{
+			    var id_num = solo_map.get(id) ;
+			    var img_other = solo_img_list[id_num] ;
+			    for(var i = 0 ; i < solo_chat_num[id_num] ; i ++ ){
+			        var array = solo_chat[id_num][i].split("^") ;
+                    if(array[0] == self_name)
+                        build_self_contact(array[0] + ':' + array[1] , self_imgurl);
+                    else
+                        build_other_contact(array[0] + ':' + array[1], img_other);
+				}
+			}
+        }
+	</script>
+	<script type="text/javascript">
+        function login_button_click() {
+            self_name = document.getElementById('username').value ;
+            var panel = document.getElementById('loginmodal') ;
+            panel.style.zIndex = '-1' ;
+            panel.style.display = 'none' ;
+
+            send_user() ;
+            send_list() ;
+        }
+	</script>
+
+<script src="js/jquery.min.js"></script>
+	<script>
+	$(document).ready(function () {
+	    var preloadbg = document.createElement('img');
+	    preloadbg.src = 'img/timeline1.png';
+	    $('#searchfield').focus(function () {
+	        if ($(this).val() == 'Search contacts...') {
+	            $(this).val('');
+	        }
+	    });
+	    $('#searchfield').focusout(function () {
+	        if ($(this).val() == '') {
+	            $(this).val('Search contacts...');
+	        }
+	    });
+	    $('#sendmessage input').focus(function () {
+	        if ($(this).val() == 'Send message...') {
+	            $(this).val('');
+	        }
+	    });
+	    $('#sendmessage input').focusout(function () {
+	        if ($(this).val() == '') {
+	            $(this).val('Send message...');
+	        }
+	    })
+
+	    $('.friend').each(function () {
+	        $(this).click(function () {
+	            var childOffset = $(this).offset();
+	            var parentOffset = $(this).parent().parent().offset();
+	            var childTop = childOffset.top - parentOffset.top;
+	            var clone = $(this).find('img').eq(0).clone();
+	            var top = childTop + 12 + 'px';
+	            $(clone).css({ 'top': top }).addClass('floatingImg').appendTo('#chatbox');
+	            setTimeout(function () {
+	                $('#profile p').addClass('animate');
+	                $('#profile').addClass('animate');
+	            }, 100);
+	            setTimeout(function () {
+	                $('#chat-messages').addClass('animate');
+	                $('.cx, .cy').addClass('s1');
+	                setTimeout(function () {
+	                    $('.cx, .cy').addClass('s2');
+	                }, 100);
+	                setTimeout(function () {
+	                    $('.cx, .cy').addClass('s3');
+	                }, 200);
+	            }, 150);
+	            $('.floatingImg').animate({
+	                'width': '68px',
+	                'left': '388px',
+	                'top': '20px'
+	            }, 200);
+	            var name = $(this).find('p strong').html();
+	            var email = $(this).find('p span').html();
+	            $('#profile p').html(name);
+	            $('#profile span').html(email);
+	            //$('.message').not('.right').find('img').attr('src', $(clone).attr('src'));
+	            $('#friendslist').fadeOut();
+	            $('#chatview').fadeIn();
+	            $('#close').unbind('click').click(function () {
+	                $('#chat-messages, #profile, #profile p').removeClass('animate');
+	                $('.cx, .cy').removeClass('s1 s2 s3');
+	                $('.floatingImg').animate({
+	                    'width': '40px',
+	                    'top': top,
+	                    'left': '12px'
+	                }, 200, function () {
+	                    $('.floatingImg').remove();
+	                });
+	                setTimeout(function () {
+	                    $('#chatview').fadeOut();
+	                    $('#friendslist').fadeIn();
+	                }, 50);
+	            });
+	        });
+	    });
+
+        $('.chatroom').each(function () {
+            $(this).click(function () {
+                var childOffset = $(this).offset();
+                var parentOffset = $(this).parent().parent().offset();
+                var childTop = childOffset.top - parentOffset.top;
+                var clone = $(this).find('img').eq(0).clone();
+                var top = childTop + 12 + 'px';
+                $(clone).css({ 'top': top }).addClass('floatingImg').appendTo('#chatbox');
+                setTimeout(function () {
+                    $('#profile p').addClass('animate');
+                    $('#profile').addClass('animate');
+                }, 100);
+                setTimeout(function () {
+                    $('#chat-messages').addClass('animate');
+                    $('.cx, .cy').addClass('s1');
+                    setTimeout(function () {
+                        $('.cx, .cy').addClass('s2');
+                    }, 100);
+                    setTimeout(function () {
+                        $('.cx, .cy').addClass('s3');
+                    }, 200);
+                }, 150);
+                $('.floatingImg').animate({
+                    'width': '68px',
+                    'left': '388px',
+                    'top': '20px'
+                }, 200);
+                var name = $(this).find('p strong').html();
+                var email = $(this).find('p span').html();
+                $('#profile p').html(name);
+                $('#profile span').html(email);
+                //$('.message').not('.right').find('img').attr('src', $(clone).attr('src'));
+                $('#friendslist').fadeOut();
+                $('#chatview').fadeIn();
+                $('#close').unbind('click').click(function () {
+                    $('#chat-messages, #profile, #profile p').removeClass('animate');
+                    $('.cx, .cy').removeClass('s1 s2 s3');
+                    $('.floatingImg').animate({
+                        'width': '40px',
+                        'top': top,
+                        'left': '12px'
+                    }, 200, function () {
+                        $('.floatingImg').remove();
+                    });
+                    setTimeout(function () {
+                        $('#chatview').fadeOut();
+                        $('#friendslist').fadeIn();
+                    }, 50);
+                });
+            });
+        });
+	});
+	</script>
+</body>
+</html>
